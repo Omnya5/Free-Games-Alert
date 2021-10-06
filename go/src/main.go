@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/slack-go/slack"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -18,16 +20,16 @@ type games struct {
 		Catalog struct {
 			SearchStore struct {
 				Elements []struct {
-					Title                string      `json:"title"`
-					ID                   string      `json:"id"`
-					EffectiveDate        time.Time   `json:"effectiveDate"`
-					KeyImages            []struct {
+					Title         string    `json:"title"`
+					ID            string    `json:"id"`
+					EffectiveDate time.Time `json:"effectiveDate"`
+					KeyImages     []struct {
 						Type string `json:"type"`
 						URL  string `json:"url"`
 					} `json:"keyImages"`
 					Price struct {
 						TotalPrice struct {
-							Discount        int `json:"discount"`
+							Discount int `json:"discount"`
 						} `json:"totalPrice"`
 					} `json:"price"`
 				} `json:"elements"`
@@ -48,6 +50,7 @@ var (
 	url                      = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=PL&allowCountries=PL"
 	numberAffectedRows int64 = 0
 	games1                   = games{}
+	webhookUrl = "https://hooks.slack.com/services/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"
 )
 
 func main() {
@@ -64,10 +67,8 @@ func main() {
 			if jsonErr != nil {
 				log.Fatal(jsonErr)
 			}
-
 			insertNewGames(db, games1)
 		}
-
 		if numberAffectedRows > 0 {
 			sendMessageForFreeGames(games1)
 			numberAffectedRows = 0
@@ -93,30 +94,23 @@ func insertNewGames(db *sql.DB, games1 games) {
 	}
 }
 
-//sendMessageForFreeGames send message for every element of games1 that is discounted
+//sendMessageForFreeGames send message to Slack for every element of games1 that is discounted
 //Message contains title of the game and time of discount
 func sendMessageForFreeGames(gm games) {
 	for _, e := range gm.Data.Catalog.SearchStore.Elements {
 		if e.Price.TotalPrice.Discount > 0 {
 			log.Println(e.Title)
 			log.Println(e.KeyImages[0])
-			msg := "New game available for free! " + e.Title + " for free for 7 days from " + e.EffectiveDate.Format("01-02-2006")
-			sendMessage(msg)
+			message := "New game available for free! " + e.Title + " for free for 7 days from " + e.EffectiveDate.Format("01-02-2006")
+			err := sendSlackNotification(webhookUrl, message)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 }
 
-//sendMessage send given message to webhook URL set in Slack Api
-func sendMessage(message string) {
-	webhookUrl := "https://hooks.slack.com/services/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"
-	err := sendSlackNotification(webhookUrl, message)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 //getDB open the connection to database specified by its database driver name and a driver-specific data source name
-//If there is an error opening the connection, it will be handled.
 func getDB(driverName string, dataSourceName string) *sql.DB {
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
@@ -124,7 +118,6 @@ func getDB(driverName string, dataSourceName string) *sql.DB {
 	}
 	return db
 }
-
 
 //getData issues a GET to specified given URL and read data from response body.
 //If function has no error, it returns data in []byte type. Otherwise, it returns an error.
