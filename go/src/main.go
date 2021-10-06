@@ -6,14 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	//"github.com/slack-go/slack"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 )
 
+//games struct refers to JSON structure retrieved from website : https://www.epicgames.com/store/en-US/free-games
 type games struct {
 	Data struct {
 		Catalog struct {
@@ -77,6 +76,8 @@ func main() {
 	defer db.Close()
 }
 
+//insertNewGames insert data from games1 to specified database.
+//Every successive operation of insert will increase numberAffectedRows.
 func insertNewGames(db *sql.DB, games1 games) {
 	for _, t := range games1.Data.Catalog.SearchStore.Elements {
 		if t.Price.TotalPrice.Discount > 0 {
@@ -92,6 +93,8 @@ func insertNewGames(db *sql.DB, games1 games) {
 	}
 }
 
+//sendMessageForFreeGames send message for every element of games1 that is discounted
+//Message contains title of the game and time of discount
 func sendMessageForFreeGames(gm games) {
 	for _, e := range gm.Data.Catalog.SearchStore.Elements {
 		if e.Price.TotalPrice.Discount > 0 {
@@ -103,10 +106,17 @@ func sendMessageForFreeGames(gm games) {
 	}
 }
 
-/*
-getDB open the connection to database specified by its database driver name and a driver-specific data source name
-If there is an error opening the connection, it will be handled.
-*/
+//sendMessage send given message to webhook URL set in Slack Api
+func sendMessage(message string) {
+	webhookUrl := "https://hooks.slack.com/services/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"
+	err := sendSlackNotification(webhookUrl, message)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+//getDB open the connection to database specified by its database driver name and a driver-specific data source name
+//If there is an error opening the connection, it will be handled.
 func getDB(driverName string, dataSourceName string) *sql.DB {
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
@@ -115,11 +125,9 @@ func getDB(driverName string, dataSourceName string) *sql.DB {
 	return db
 }
 
-/*
-getData issues a GET to specified given URL and read data from response body.
 
-If function has no error, it returns data in []byte type. Otherwise, it returns an error.
-*/
+//getData issues a GET to specified given URL and read data from response body.
+//If function has no error, it returns data in []byte type. Otherwise, it returns an error.
 func getData(url string) ([]byte, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -136,17 +144,9 @@ func getData(url string) ([]byte, error) {
 	return data, nil
 }
 
-func sendMessage(message string) {
-	webhookUrl := "https://hooks.slack.com/services/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"
-	err := SendSlackNotification(webhookUrl, message)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// SendSlackNotification will post to an 'Incoming Webook' url setup in Slack Apps. It accepts
-// some text and the slack channel is saved within Slack.
-func SendSlackNotification(webhookUrl string, msg string) error {
+//sendSlackNotification will post to an 'Incoming Webhook' url setup in Slack Apps.
+//It accepts text and the webhook URL connected to Slack channel.
+func sendSlackNotification(webhookUrl string, msg string) error {
 	slackBody, _ := json.Marshal(SlackRequestBody{Text: msg})
 	req, err := http.NewRequest(http.MethodPost, webhookUrl, bytes.NewBuffer(slackBody))
 	if err != nil {
