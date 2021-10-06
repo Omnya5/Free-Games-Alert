@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -50,13 +51,13 @@ var (
 	url                      = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=PL&allowCountries=PL"
 	numberAffectedRows int64 = 0
 	games1                   = games{}
-	webhookUrl = "https://hooks.slack.com/services/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"
+	webhookUrl string
 )
 
 func main() {
 	db := getDB(driverName, dataSourceName)
-
-	ticker := time.NewTicker(time.Second * 10)
+	webhookUrl := os.Args[1]
+	ticker := time.NewTicker(time.Hour * 24)
 	for ; true; <-ticker.C {
 		games1 = games{}
 
@@ -70,7 +71,7 @@ func main() {
 			insertNewGames(db, games1)
 		}
 		if numberAffectedRows > 0 {
-			sendMessageForFreeGames(games1)
+			sendMessageForFreeGames(games1, webhookUrl)
 			numberAffectedRows = 0
 		}
 	}
@@ -96,7 +97,7 @@ func insertNewGames(db *sql.DB, games1 games) {
 
 //sendMessageForFreeGames send message to Slack for every element of games1 that is discounted
 //Message contains title of the game and time of discount
-func sendMessageForFreeGames(gm games) {
+func sendMessageForFreeGames(gm games, webhookUrl string) {
 	for _, e := range gm.Data.Catalog.SearchStore.Elements {
 		if e.Price.TotalPrice.Discount > 0 {
 			log.Println(e.Title)
