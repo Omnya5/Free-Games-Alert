@@ -24,14 +24,18 @@ Project can be started in command line. As a argument user should provide webhoo
 
 First we need to start docker containers:
 
+```
 $ cd project-folder
 $ docker-compose up
+```
 
 Next go to golang conteiner and build application:
 
+```
 $ docker exec -it golang-test-container bash
 $ cd src
 $ go build main.go
 $ ./main https://hooks.slack.com/webhook-url-from-slack-api-setup
+```
 
 Author: Paulina Strzygowska.
